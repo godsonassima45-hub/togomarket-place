@@ -1,0 +1,8 @@
+{
+  "name": "TogoMarketPlace Enterprise",
+  "description": "Plateforme e-commerce multi-vendeurs B2B/B2C leader au Togo. Intègre gestion de stocks, commissions automatiques, paiements Mobile Money et cabine d'essayage virtuelle IA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
