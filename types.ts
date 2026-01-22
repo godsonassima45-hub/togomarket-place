@@ -153,6 +153,7 @@ export interface Order {
   status: 'en_attente' | 'paye' | 'preparation' | 'expedie' | 'livre' | 'annule';
   paymentMethod: PaymentMethod;
   customerName: string;
+  customerEmail: string;
   customerPhone: string;
   statusHistory: OrderStatusUpdate[];
   isReviewed?: boolean;

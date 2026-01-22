@@ -2,11 +2,13 @@
 import { GoogleGenAI, Type, Modality, LiveServerMessage, Blob } from "@google/genai";
 
 export class GeminiService {
+  // Use a static getter to ensure a fresh instance with the current API key is always used
   private static get ai() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   }
 
-  // --- Audio Utils for Live API ---
+  // --- Audio Utils ---
+  // Manual base64 encoding as required by guidelines
   static encode(bytes: Uint8Array): string {
     let binary = '';
     const len = bytes.byteLength;
@@ -16,6 +18,7 @@ export class GeminiService {
     return btoa(binary);
   }
 
+  // Manual base64 decoding as required by guidelines
   static decode(base64: string): Uint8Array {
     const binaryString = atob(base64);
     const len = binaryString.length;
@@ -26,6 +29,7 @@ export class GeminiService {
     return bytes;
   }
 
+  // Raw PCM audio decoding for Live API/TTS
   static async decodeAudioData(
     data: Uint8Array,
     ctx: AudioContext,
@@ -45,6 +49,7 @@ export class GeminiService {
     return buffer;
   }
 
+  // Create PCM blob for Live API input
   static createBlob(data: Float32Array): Blob {
     const l = data.length;
     const int16 = new Int16Array(l);
@@ -57,90 +62,53 @@ export class GeminiService {
     };
   }
 
-  // --- Core Services ---
+  // --- IA Services ---
+
+  // Analyze profile data using gemini-3-flash-preview
   static async analyzeProfile(userData: any, type: 'seller' | 'buyer'): Promise<string> {
     try {
       const response = await this.ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Tu es Lumina Intelligence. Analyse ce profil ${type} : ${JSON.stringify(userData)}. Donne un rapport Facebook-style : Authenticité, Sentiment, Influence et Risque.`
+        contents: `Tu es Lumina IQ. Analyse ce profil ${type} : ${JSON.stringify(userData)}. Donne un rapport concis en français.`
       });
-      return response.text || "Analyse impossible.";
+      return response.text || "Analyse indisponible.";
     } catch (e) {
       return "Erreur d'analyse.";
     }
   }
 
+  // Mode/Style advice using gemini-3-flash-preview with search grounding
   static async getStylistAdvice(userQuery: string, catalog: string) {
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Tu es l'expert mode de TogoMarket. En utilisant les tendances actuelles du web et notre catalogue : ${catalog}, réponds à : ${userQuery}. Cite tes sources si tu utilises des tendances externes.`,
-        config: {
-          tools: [{ googleSearch: {} }]
-        }
+        model: 'gemini-3-flash-preview',
+        contents: `Tu es Lumina IQ, l'assistant mode de TogoMarket. Catalogue : ${catalog}. Réponds à : ${userQuery}.`,
+        config: { tools: [{ googleSearch: {} }] }
       });
-      
       let text = response.text || "";
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       if (chunks && chunks.length > 0) {
-        text += "\n\n**Sources & Tendances :**\n";
+        text += "\n\n**Sources web :**\n";
         chunks.forEach((chunk: any) => {
           if (chunk.web) text += `- [${chunk.web.title}](${chunk.web.uri})\n`;
         });
       }
       return text;
     } catch (e) {
-      return "Désolé, le styliste est occupé.";
+      return "Désolé, Lumina Stylist est hors ligne.";
     }
   }
 
-  static async getRecommendations(history: string[], catalog: string): Promise<string[]> {
+  // Virtual try-on using gemini-2.5-flash-image
+  static async virtualTryOn(userImgBase64: string, productInfo: string): Promise<string | null> {
     try {
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Analyse l'historique : [${history.join(', ')}] et le catalogue : ${catalog}. Retourne un JSON array des 5 meilleurs IDs produits.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
-        }
-      });
-      return JSON.parse(response.text || '[]');
-    } catch (e) {
-      return [];
-    }
-  }
-
-  static async getSmartSuggestions(imgBase64: string): Promise<string[]> {
-    try {
-      const data = imgBase64.includes(',') ? imgBase64.split(',')[1] : imgBase64;
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-          parts: [
-            { inlineData: { data, mimeType: 'image/jpeg' } },
-            { text: "Suggère 4 prompts pour changer l'arrière-plan de ce produit." }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
-        }
-      });
-      return JSON.parse(response.text || '[]');
-    } catch (e) { return []; }
-  }
-
-  static async replaceBackground(productImg: string, bgImg: string): Promise<string | null> {
-    try {
-      const pData = productImg.includes(',') ? productImg.split(',')[1] : productImg;
-      const bData = bgImg.includes(',') ? bgImg.split(',')[1] : bgImg;
+      const data = userImgBase64.includes(',') ? userImgBase64.split(',')[1] : userImgBase64;
       const response = await this.ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
           parts: [
-            { inlineData: { data: pData, mimeType: 'image/jpeg' } },
-            { inlineData: { data: bData, mimeType: 'image/jpeg' } },
-            { text: "Intègre l'objet de la première image dans le décor de la deuxième." }
+            { inlineData: { data, mimeType: 'image/jpeg' } },
+            { text: `Génère une image réaliste de cette personne portant/utilisant cet article : ${productInfo}. Conserve le visage intact.` }
           ]
         }
       });
@@ -149,6 +117,66 @@ export class GeminiService {
     } catch (e) { return null; }
   }
 
+  // Generate image using gemini-2.5-flash-image
+  static async generateImage(prompt: string): Promise<string | null> {
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] }
+      });
+      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
+    } catch (e) { return null; }
+  }
+
+  // Get creative suggestions for an image using gemini-3-flash-preview with JSON schema
+  static async getSmartSuggestions(imgBase64: string): Promise<string[]> {
+    try {
+      const data = imgBase64.includes(',') ? imgBase64.split(',')[1] : imgBase64;
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            { inlineData: { data: data, mimeType: 'image/jpeg' } },
+            { text: "Analyse cette image de produit et propose 4 suggestions d'améliorations visuelles ou de mises en scène créatives (en français). Réponds en JSON." }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+      return JSON.parse(response.text || '[]');
+    } catch (e) {
+      console.error("Suggestions error:", e);
+      return [];
+    }
+  }
+
+  // Replace background using gemini-2.5-flash-image with two image parts
+  static async replaceBackground(userImgBase64: string, bgImgBase64: string): Promise<string | null> {
+    try {
+      const userData = userImgBase64.includes(',') ? userImgBase64.split(',')[1] : userImgBase64;
+      const bgData = bgImgBase64.includes(',') ? bgImgBase64.split(',')[1] : bgImgBase64;
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            { inlineData: { data: userData, mimeType: 'image/jpeg' } },
+            { inlineData: { data: bgData, mimeType: 'image/jpeg' } },
+            { text: "Remplace l'arrière-plan de la première image par le décor de la deuxième image. Conserve le sujet principal intact." }
+          ]
+        }
+      });
+      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
+    } catch (e) { return null; }
+  }
+
+  // Edit image with text prompt using gemini-2.5-flash-image
   static async editImage(imgBase64: string, prompt: string): Promise<string | null> {
     try {
       const data = imgBase64.includes(',') ? imgBase64.split(',')[1] : imgBase64;
@@ -166,39 +194,12 @@ export class GeminiService {
     } catch (e) { return null; }
   }
 
-  static async virtualTryOn(userImg: string, productDesc: string): Promise<string | null> {
-    try {
-      const data = userImg.includes(',') ? userImg.split(',')[1] : userImg;
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            { inlineData: { data, mimeType: 'image/jpeg' } },
-            { text: `Fais porter cet article de mode : ${productDesc}` }
-          ]
-        }
-      });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
-    } catch (e) { return null; }
-  }
-
-  static async generateImage(prompt: string): Promise<string | null> {
-    try {
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: prompt }] }
-      });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
-    } catch (e) { return null; }
-  }
-
+  // Live Stylist voice connection using gemini-2.5-flash-native-audio-preview-12-2025
   static connectLiveStylist(callbacks: {
     onopen: () => void;
     onmessage: (message: LiveServerMessage) => void;
-    onerror: (e: ErrorEvent) => void;
-    onclose: (e: CloseEvent) => void;
+    onerror: (e: any) => void;
+    onclose: (e: any) => void;
   }) {
     return this.ai.live.connect({
       model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -208,7 +209,7 @@ export class GeminiService {
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
         },
-        systemInstruction: 'Tu es Lumina, l\'assistant vocal expert de TogoMarket. Tu aides les clients à trouver des produits en parlant naturellement. Sois poli, concis et efficace.',
+        systemInstruction: 'Tu es Lumina, l\'assistant vocal expert de TogoMarket. Parle français, sois amical.',
       },
     });
   }

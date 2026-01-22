@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TogoMarket 🇹🇬 | Plateforme E-commerce Premium du Togo</title>
+    <title>TogoMarket Premium 🇹🇬 | Plateforme E-commerce d'Excellence</title>
     
-    <meta name="description" content="Achetez et vendez vos produits au Togo. Paiements TMoney/Flooz, cabine d'essayage IA et livraison rapide.">
-    <meta property="og:title" content="TogoMarket 🇹🇬 | Le Marché Premium du Togo">
-    <meta property="og:description" content="Shopping sécurisé, livraison rapide et IA innovante.">
+    <meta name="description" content="Achetez et vendez vos produits au Togo avec la sécurité Lumina. Paiements TMoney/Flooz, cabine d'essayage IA et livraison rapide.">
+    <meta property="og:title" content="TogoMarket Premium 🇹🇬 | Le Futur du Commerce">
+    <meta property="og:description" content="Shopping sécurisé, IA innovante et excellence opérationnelle au Togo.">
     <meta property="og:image" content="https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800">
     <meta property="og:type" content="website">
     
@@ -21,15 +21,29 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; scroll-behavior: smooth; }
         .glass-header { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px); }
         .dark .glass-header { background: rgba(15, 23, 42, 0.75); }
-        .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
         @media (min-width: 768px) { .product-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 32px; } }
+        
+        .coin-spin { animation: spin 3s linear infinite; }
+        @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #006a4e; border-radius: 10px; }
+
+        .btn-press:active { transform: scale(0.95); transition: 0.1s; }
+        .nav-pill-shadow { box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        
+        .confetti { position: absolute; width: 10px; height: 10px; border-radius: 2px; animation: fall linear forwards; z-index: 200; }
+        @keyframes fall { to { transform: translateY(100vh) rotate(360deg); } }
     </style>
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
-            colors: { togo: { green: '#006a4e', yellow: '#ffce00', red: '#d21034' } }
+            colors: { togo: { green: '#006a4e', yellow: '#ffce00', red: '#d21034' } },
+            boxShadow: { '3xl': '0 35px 60px -15px rgba(0, 0, 0, 0.3)' }
           }
         }
       }
@@ -47,7 +61,7 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-x-hidden selection:bg-togo-green selection:text-white">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white overflow-x-hidden selection:bg-togo-green selection:text-white">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
