@@ -30,7 +30,7 @@ const INITIAL_RULES: SiteRule[] = [
 ];
 
 const App: React.FC = () => {
-  const [view, setView] = useState<AppView | 'SUCCESS'>(AppView.STORE);
+  const [view, setView] = useState<AppView>(AppView.STORE);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -46,13 +46,12 @@ const App: React.FC = () => {
   const [rules] = useState<SiteRule[]>(INITIAL_RULES);
 
   useEffect(() => {
-    // PERSISTANCE DE SESSION : On vérifie si l'utilisateur est déjà loggé
     const session = DatabaseService.getCurrentSession();
     if (session) {
       setCurrentUser(session);
       setShowAuth(false);
     } else {
-      setShowAuth(true); // Demande d'auth seulement si pas de session
+      setShowAuth(true);
     }
     setProducts(DatabaseService.getProducts());
   }, []);
@@ -66,7 +65,6 @@ const App: React.FC = () => {
   const handleAuthSuccess = (user: UserProfile, isNewUser: boolean) => {
     setCurrentUser(user);
     setShowAuth(false);
-    // ON MONTRE LES RÈGLES UNIQUEMENT SI C'EST UNE NOUVELLE INSCRIPTION
     if (isNewUser) {
       setShowRules(true);
     }
@@ -86,14 +84,14 @@ const App: React.FC = () => {
       DatabaseService.processCheckout(currentUser.email, totalTokens, cart);
       refreshAppData();
       setCart([]);
-      setView('SUCCESS' as any);
+      setView(AppView.SUCCESS);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       (window as any).notify?.(e.message, "error");
     }
   };
 
-  const navigateTo = (v: AppView | 'SUCCESS') => {
+  const navigateTo = (v: AppView) => {
     setView(v);
     setInspectedUser(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -110,7 +108,7 @@ const App: React.FC = () => {
       <NotificationSystem />
       
       <Header 
-        currentView={view as AppView} 
+        currentView={view} 
         setView={navigateTo} 
         cartCount={cart.length} 
         theme={theme} 
@@ -173,23 +171,51 @@ const App: React.FC = () => {
 
         {view === AppView.PROFILE && currentUser && (
           <ProfileView 
-            user={currentUser} isMe={true} orders={[]} onViewOrder={() => {}} 
+            user={inspectedUser || currentUser} 
+            isMe={!inspectedUser || inspectedUser.id === currentUser.id} 
+            orders={[]} 
+            onViewOrder={() => {}} 
             onEditProfile={(u) => { DatabaseService.updateProfile(u); refreshAppData(); }} 
+            isAdminView={currentUser.role === 'admin'}
           />
         )}
 
         {view === AppView.SELLER_DASHBOARD && currentUser && (
           <SellerDashboard 
-            orders={[]} seller={{...currentUser, logo: currentUser.avatar, isVerified: true, totalSales: 0, category: 'Vendeur Premium', reviews: []}} 
-            products={products} onAdvanceStatus={() => {}} onOpenChat={() => {}} 
-            onCreateProduct={() => setShowAddProduct(true)} onPayForVerification={() => {}} 
-            onPayForWorkflow={() => {}} onSaveWorkflow={() => {}} onUpdateInventory={refreshAppData} 
+            orders={[]} 
+            seller={{...currentUser, logo: currentUser.avatar, isVerified: true, totalSales: 0, category: 'Vendeur Premium', reviews: []}} 
+            products={products} 
+            onAdvanceStatus={() => {}} 
+            onOpenChat={() => {}} 
+            onCreateProduct={() => setShowAddProduct(true)} 
+            onPayForVerification={() => {}} 
+            onPayForWorkflow={() => {}} 
+            onSaveWorkflow={() => {}} 
+            onUpdateInventory={refreshAppData} 
+            userEmail={currentUser.email}
+          />
+        )}
+
+        {view === AppView.ADMIN_DASHBOARD && currentUser?.role === 'admin' && (
+          <AdminDashboard 
+            orders={[]} 
+            sellers={DatabaseService.getAllUsers().filter(u => u.role === 'seller') as any}
+            allUsers={DatabaseService.getAllUsers()} 
+            rules={rules} 
+            logs={[]}
+            onPromoteAdmin={() => {}} 
+            onToggleVerifySeller={() => {}} 
+            onViewProfile={(u) => { setInspectedUser(u); setView(AppView.PROFILE); }}
+            onBanUser={(id) => {}} 
+            onWithdrawRequest={() => {}}
+            onUpdateRule={() => {}} 
+            onAddRule={() => {}}
           />
         )}
 
         {view === AppView.CONTACT && <ContactView onBack={() => navigateTo(AppView.STORE)} />}
 
-        {view === 'SUCCESS' && (
+        {view === AppView.SUCCESS && (
           <SuccessView orderId={`LMN-${Math.floor(Math.random()*9000)+1000}`} onContinue={() => navigateTo(AppView.STORE)} />
         )}
       </main>
@@ -211,7 +237,7 @@ const App: React.FC = () => {
       )}
       
       {currentUser && (
-        <button onClick={handleLogout} className="fixed bottom-6 left-6 z-[150] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase border border-red-500/20">Déconnexion 🚪</button>
+        <button onClick={handleLogout} className="fixed bottom-6 left-6 z-[150] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase border border-red-500/20 shadow-lg transition-all">Déconnexion 🚪</button>
       )}
 
       <Footer setView={navigateTo} />

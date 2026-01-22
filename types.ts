@@ -169,7 +169,8 @@ export enum AppView {
   CONTACT = 'CONTACT',
   ORDER_DETAILS = 'ORDER_DETAILS',
   MESSAGES = 'MESSAGES',
-  PROFILE = 'PROFILE'
+  PROFILE = 'PROFILE',
+  SUCCESS = 'SUCCESS'
 }
 
 export type Theme = 'light' | 'dark';
