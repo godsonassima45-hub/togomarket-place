@@ -1,13 +1,12 @@
-
 import React, { useState } from 'react';
 import { Order, Seller, Product, WorkflowConfig } from '../types';
 import { WorkflowManager } from './WorkflowManager';
-import { MASTER_ADMIN_EMAIL } from '../services/database';
+import { MASTER_ADMIN_EMAIL, DatabaseService } from '../services/database';
 
 interface SellerDashboardProps {
   orders: Order[];
   seller: Seller;
-  products: Product[];
+  products: (Product & { status?: 'published' | 'draft' })[];
   workflowConfig?: WorkflowConfig;
   onAdvanceStatus: (id: string) => void;
   onOpenChat: (userId: string, name: string, avatar: string) => void;
@@ -16,10 +15,11 @@ interface SellerDashboardProps {
   onPayForWorkflow: () => void;
   onSaveWorkflow: (config: WorkflowConfig) => void;
   userEmail?: string;
+  onUpdateInventory: () => void;
 }
 
 export const SellerDashboard: React.FC<SellerDashboardProps> = ({ 
-  orders, seller, products, workflowConfig, onAdvanceStatus, onOpenChat, onCreateProduct, onPayForVerification, onPayForWorkflow, onSaveWorkflow, userEmail
+  orders, seller, products, workflowConfig, onAdvanceStatus, onOpenChat, onCreateProduct, onPayForVerification, onPayForWorkflow, onSaveWorkflow, userEmail, onUpdateInventory
 }) => {
   const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'workflow'>('inventory');
   const sellerProducts = products.filter(p => p.sellerId === seller.id);
@@ -27,13 +27,25 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
   
   const isOwner = userEmail?.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
 
+  const handleDelete = (id: string) => {
+    if (window.confirm("Supprimer définitivement cet article ?")) {
+      DatabaseService.deleteProduct(id);
+      onUpdateInventory();
+    }
+  };
+
+  const handleToggleStatus = (id: string) => {
+    DatabaseService.toggleProductStatus(id);
+    onUpdateInventory();
+  };
+
   return (
     <div className="space-y-10 animate-in fade-in duration-500">
       
       {/* Header Vendeur */}
       <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-6">
-          <div className="w-20 h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-3xl shadow-inner">
+          <div className="w-20 h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-3xl shadow-inner relative overflow-hidden group">
             {seller.logo ? <img src={seller.logo} className="w-full h-full object-cover rounded-2xl" /> : '🏪'}
           </div>
           <div>
@@ -46,7 +58,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   onClick={onPayForVerification}
                   className="bg-togo-yellow text-togo-green px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg"
                 >
-                  {isOwner ? 'Activer Certification (Gratuit Maître)' : 'Devenir Vérifié (9 LT)'}
+                  {isOwner ? 'Activer Certification (Gratuit Admin)' : 'Devenir Vérifié (9 LT)'}
                 </button>
               )}
             </div>
@@ -56,8 +68,8 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
         
         <div className="flex gap-8 text-center">
           <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Ventes Totales</p>
-            <p className="text-xl font-black text-slate-900 dark:text-white">{seller.totalSales}</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Articles</p>
+            <p className="text-xl font-black text-slate-900 dark:text-white">{sellerProducts.length}</p>
           </div>
           <div className="h-10 w-px bg-slate-100 dark:bg-slate-800"></div>
           <div>
@@ -126,33 +138,67 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       )}
 
       {activeTab === 'inventory' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-8">
           {sellerProducts.map(p => (
-            <div key={p.id} className="bg-white dark:bg-slate-900 p-4 rounded-3xl border flex items-center gap-4">
-              <img src={p.image} className="w-16 h-16 rounded-xl object-cover" />
-              <div>
-                <h4 className="font-black text-sm uppercase">{p.name}</h4>
-                <p className="text-xs font-bold text-togo-green">{p.price.toLocaleString()} F</p>
+            <div key={p.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border dark:border-slate-800 shadow-sm flex flex-col gap-4 relative overflow-hidden group">
+              <div className="flex items-center gap-4">
+                <img src={p.image} className="w-16 h-16 rounded-2xl object-cover shadow-md" />
+                <div className="flex-1 overflow-hidden">
+                  <h4 className="font-black text-[11px] uppercase truncate text-slate-900 dark:text-white">{p.name}</h4>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-black text-togo-green">{p.price.toLocaleString()} F</p>
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${p.status === 'draft' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                      {p.status === 'draft' ? 'Brouillon' : 'En Ligne'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t dark:border-slate-800">
+                 <button 
+                  onClick={() => handleToggleStatus(p.id)}
+                  className="flex-1 py-3 rounded-xl text-[9px] font-black uppercase bg-slate-50 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white transition-all"
+                 >
+                   {p.status === 'draft' ? 'Publier 🛰️' : 'Désactiver 💤'}
+                 </button>
+                 <button 
+                  onClick={() => handleDelete(p.id)}
+                  className="w-12 h-12 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all shadow-sm"
+                 >
+                   🗑️
+                 </button>
               </div>
             </div>
           ))}
-          <button onClick={onCreateProduct} className="border-4 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 transition-all opacity-40">
-             <span className="text-3xl">+</span>
-             <span className="text-[10px] font-black uppercase">Ajouter un produit</span>
+          <button 
+            onClick={onCreateProduct} 
+            className="border-4 border-dashed border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-12 flex flex-col items-center justify-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group"
+          >
+             <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-2xl group-hover:scale-125 transition-transform text-slate-400">+</div>
+             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Ajouter un article</span>
           </button>
         </div>
       )}
 
       {activeTab === 'orders' && (
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border dark:border-slate-800 overflow-hidden shadow-xl">
           <table className="w-full text-left">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-slate-400 text-[10px] font-black uppercase">
-              <tr><th className="p-6">Client</th><th className="p-6">Total</th><th className="p-6">Statut</th></tr>
+            <thead className="bg-slate-50 dark:bg-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+              <tr><th className="p-6">Client</th><th className="p-6">Produits</th><th className="p-6">Total Net</th><th className="p-6">Statut</th></tr>
             </thead>
-            <tbody className="divide-y">
-              {orders.map(o => (
-                <tr key={o.id}><td className="p-6 font-bold">{o.customerName}</td><td className="p-6">{o.total.toLocaleString()} F</td><td className="p-6">{o.status}</td></tr>
-              ))}
+            <tbody className="divide-y dark:divide-slate-800">
+              {orders.length > 0 ? orders.map(o => (
+                <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <td className="p-6 font-bold text-sm">{o.customerName}</td>
+                  <td className="p-6 text-xs text-slate-500">{o.items.length} articles</td>
+                  <td className="p-6 font-black text-togo-green">{o.netVendeur.toLocaleString()} LT</td>
+                  <td className="p-6">
+                    <span className="bg-togo-green/10 text-togo-green px-3 py-1 rounded-full text-[9px] font-black uppercase">{o.status}</span>
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">Aucune commande reçue pour le moment ☕</td></tr>
+              )}
             </tbody>
           </table>
         </div>

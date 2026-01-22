@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Product, AppView } from '../types';
 
@@ -19,12 +18,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const tokenPrice = Math.ceil(finalPriceFcfa / 500);
   const isWholesale = product.sellingType === 'wholesale';
   
-  const isTryable = (
-    product.sellingType === 'retail' &&
-    (['Mode & Textile', 'Beauté & Soins', 'Artisanat'].includes(product.category)) &&
-    !product.name.toLowerCase().includes('savon') &&
-    !product.name.toLowerCase().includes('huile')
-  );
+  // Désormais, TOUS les articles peuvent être essayés virtuellement
+  const isTryable = true;
 
   return (
     <div className="group bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-[0_20px_60px_-15px_rgba(0,106,78,0.15)] transition-all duration-500 flex flex-col h-full relative border-2 hover:border-togo-green/20">

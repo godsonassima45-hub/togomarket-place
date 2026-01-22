@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppView, Product, CartItem, Order, Theme, UserRole, UserProfile, SiteRule, SecurityLog, Transaction, PaymentMethod, WorkflowConfig } from './types';
-import { PRODUCTS } from './data/products';
 import { DatabaseService } from './services/database';
 import { Header } from './components/Header';
 import { ProductCard } from './components/ProductCard';
@@ -14,14 +13,15 @@ import { ProductDetailView } from './components/ProductDetailView';
 import { ProfileView } from './components/ProfileView';
 import { Hero } from './components/Hero';
 import { CategoryBar } from './components/CategoryBar';
-import { AddProductModal } from './components/AddProductModal';
 import { SuccessView } from './components/SuccessView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { NotificationSystem } from './components/NotificationSystem';
-import { WithdrawalModal } from './components/WithdrawalModal';
 import { RechargeModal } from './components/RechargeModal';
 import { ContactView } from './components/ContactView';
 import { AuthModal } from './components/AuthModal';
+import { RulesModal } from './components/RulesModal';
+import { Newsletter } from './components/Newsletter';
+import { AddProductModal } from './components/AddProductModal';
 
 const INITIAL_RULES: SiteRule[] = [
   { id: 'r1', key: 'fee_commission', title: 'Commission Marketplace', description: 'Pourcentage prélevé sur chaque vente.', value: 10, type: 'percent', category: 'finance', lastUpdated: 'Mars 2024' },
@@ -33,65 +33,44 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView | 'SUCCESS'>(AppView.STORE);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [showAddProduct, setShowAddProduct] = useState(false);
   const [theme, setTheme] = useState<Theme>('light');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Tous');
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [products, setProducts] = useState<(Product & { status?: 'published' | 'draft' })[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showRecharge, setShowRecharge] = useState(false);
   const [inspectedUser, setInspectedUser] = useState<UserProfile | null>(null);
   const [rules] = useState<SiteRule[]>(INITIAL_RULES);
 
   useEffect(() => {
+    // PERSISTANCE DE SESSION : On vérifie si l'utilisateur est déjà loggé
     const session = DatabaseService.getCurrentSession();
-    if (session) setCurrentUser(session);
-    else setShowAuth(true);
+    if (session) {
+      setCurrentUser(session);
+      setShowAuth(false);
+    } else {
+      setShowAuth(true); // Demande d'auth seulement si pas de session
+    }
+    setProducts(DatabaseService.getProducts());
   }, []);
 
-  const refreshUserData = () => {
-    const session = DatabaseService.getCurrentSession();
-    setCurrentUser(session);
+  const refreshAppData = () => {
+    const updated = DatabaseService.getCurrentSession();
+    if (updated) setCurrentUser(updated);
+    setProducts(DatabaseService.getProducts());
   };
 
-  const handleAuthSuccess = (user: UserProfile) => {
+  const handleAuthSuccess = (user: UserProfile, isNewUser: boolean) => {
     setCurrentUser(user);
     setShowAuth(false);
-    (window as any).notify?.(`Bienvenue, ${user.name} !`, 'success');
-  };
-
-  const handleCheckout = (totalTokens: number) => {
-    if (!currentUser) return;
-    try {
-      DatabaseService.processCheckout(currentUser.email, totalTokens, cart);
-      refreshUserData();
-      setCart([]);
-      setView('SUCCESS' as any);
-    } catch (e: any) {
-      alert(e.message);
+    // ON MONTRE LES RÈGLES UNIQUEMENT SI C'EST UNE NOUVELLE INSCRIPTION
+    if (isNewUser) {
+      setShowRules(true);
     }
-  };
-
-  const handlePayForWorkflow = () => {
-    if (!currentUser) return;
-    try {
-      DatabaseService.purchasePremiumWorkflow(currentUser.email);
-      refreshUserData();
-      (window as any).notify?.("Workflow Premium Activé ! (Privilège Maître)", "success");
-    } catch (e: any) {
-      (window as any).notify?.(e.message, "error");
-    }
-  };
-
-  const handlePayForVerification = () => {
-    if (!currentUser) return;
-    try {
-      DatabaseService.certifySeller(currentUser.email);
-      refreshUserData();
-      (window as any).notify?.("Certification réussie ! (Privilège Maître)", "success");
-    } catch (e: any) {
-      (window as any).notify?.(e.message, "error");
-    }
+    (window as any).notify?.(`Bienvenue sur TogoMarket, ${user.name}`, 'success');
   };
 
   const handleLogout = () => {
@@ -101,13 +80,38 @@ const App: React.FC = () => {
     setView(AppView.STORE);
   };
 
+  const handleCheckout = (totalTokens: number) => {
+    if (!currentUser) return;
+    try {
+      DatabaseService.processCheckout(currentUser.email, totalTokens, cart);
+      refreshAppData();
+      setCart([]);
+      setView('SUCCESS' as any);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e: any) {
+      (window as any).notify?.(e.message, "error");
+    }
+  };
+
+  const navigateTo = (v: AppView | 'SUCCESS') => {
+    setView(v);
+    setInspectedUser(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCat = selectedCategory === 'Tous' || p.category === selectedCategory;
+    return matchesSearch && matchesCat;
+  });
+
   return (
     <div className={`min-h-screen transition-colors duration-500 ${theme === 'dark' ? 'dark bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
       <NotificationSystem />
       
       <Header 
         currentView={view as AppView} 
-        setView={(v) => { setView(v); setInspectedUser(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+        setView={navigateTo} 
         cartCount={cart.length} 
         theme={theme} 
         toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} 
@@ -120,102 +124,99 @@ const App: React.FC = () => {
         onRechargeClick={() => setShowRecharge(true)}
       />
 
-      <main className="max-w-7xl mx-auto px-4 py-8 md:py-12 min-h-[60vh]">
+      <main className="max-w-7xl mx-auto px-4 py-8 md:py-12 min-h-[70vh]">
         {view === AppView.STORE && (
           <div className="animate-in fade-in duration-700">
-            <Hero onSellClick={() => { setView(AppView.SELLER_DASHBOARD); }} />
+            <Hero onSellClick={() => navigateTo(AppView.SELLER_DASHBOARD)} />
             <CategoryBar selected={selectedCategory} onSelect={setSelectedCategory} />
-            <div className="product-grid mb-24">
-              {products
-                .filter(p => (selectedCategory === 'Tous' || p.category === selectedCategory))
-                .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map(p => (
-                  <ProductCard 
-                    key={p.id} product={p} 
-                    onAdd={p => { setCart(c => [...c, {...p, quantity: 1}]); (window as any).notify?.("Ajouté."); }} 
-                    onViewDetails={() => { setSelectedProduct(p); setView(AppView.PRODUCT_DETAIL); }} 
-                    onTryOn={(p) => { setSelectedProduct(p); setView(AppView.VIRTUAL_CABIN); }}
-                  />
-                ))}
+            <div className="product-grid mb-16">
+              {filteredProducts.map(p => (
+                <ProductCard 
+                  key={p.id} product={p} 
+                  onAdd={p => { setCart(c => [...c, {...p, quantity: 1}]); (window as any).notify?.("Ajouté au panier."); }} 
+                  onViewDetails={() => { setSelectedProduct(p); setView(AppView.PRODUCT_DETAIL); }} 
+                  onTryOn={(p) => { setSelectedProduct(p); setView(AppView.VIRTUAL_CABIN); }}
+                />
+              ))}
             </div>
+            <Newsletter />
           </div>
         )}
 
-        {view === AppView.ADMIN_DASHBOARD && (
-          <AdminDashboard 
-            orders={[]} sellers={[]}
-            allUsers={DatabaseService.getAllUsers()} rules={rules} logs={[]}
-            onPromoteAdmin={() => {}} onToggleVerifySeller={() => {}} 
-            onViewProfile={(u) => { setInspectedUser(u); setView(AppView.PROFILE); }}
-            onBanUser={(id) => {}} onWithdrawRequest={() => {}}
-            onUpdateRule={() => {}} onAddRule={() => {}}
+        {view === AppView.VIRTUAL_CABIN && (
+          <VirtualCabin 
+            initialProduct={selectedProduct} 
+            cartItems={cart} 
+            onBack={() => navigateTo(AppView.STORE)} 
+            onGoToCart={() => navigateTo(AppView.CART)} 
+          />
+        )}
+
+        {view === AppView.CART && (
+          <CartView 
+            items={cart} 
+            updateQty={(id, d) => setCart(c => c.map(i => i.id === id ? {...i, quantity: Math.max(1, i.quantity + d)} : i))} 
+            onCheckout={handleCheckout} 
+            onBack={() => setView(AppView.STORE)} 
+            userTokenBalance={currentUser?.tokenBalance || 0} 
+          />
+        )}
+
+        {view === AppView.PRODUCT_DETAIL && selectedProduct && (
+          <ProductDetailView 
+            product={selectedProduct} 
+            onAddToCart={p => { setCart(c => [...c, {...p, quantity: 1}]); (window as any).notify?.("Ajouté."); }} 
+            onBack={() => navigateTo(AppView.STORE)} 
+            onAddReview={() => {}} 
+          />
+        )}
+
+        {view === AppView.PROFILE && currentUser && (
+          <ProfileView 
+            user={currentUser} isMe={true} orders={[]} onViewOrder={() => {}} 
+            onEditProfile={(u) => { DatabaseService.updateProfile(u); refreshAppData(); }} 
           />
         )}
 
         {view === AppView.SELLER_DASHBOARD && currentUser && (
           <SellerDashboard 
-            orders={[]} seller={{id: currentUser.id, name: currentUser.name, logo: currentUser.avatar, rating: 5, joinedDate: currentUser.joinedDate, isVerified: currentUser.activityHistory.some(h => h.label.includes('Maître')), totalSales: 0, category: 'Tous', reviews: []}} 
-            products={products} 
-            workflowConfig={currentUser.workflowConfig}
-            onAdvanceStatus={() => {}} onOpenChat={() => {}} 
-            onCreateProduct={() => {}} 
-            onPayForVerification={handlePayForVerification}
-            onPayForWorkflow={handlePayForWorkflow} 
-            onSaveWorkflow={(c) => { 
-              const u = {...currentUser, workflowConfig: c}; 
-              DatabaseService.updateProfile(u); refreshUserData(); 
-              (window as any).notify?.("Configuration sauvegardée.");
-            }}
-            userEmail={currentUser.email}
+            orders={[]} seller={{...currentUser, logo: currentUser.avatar, isVerified: true, totalSales: 0, category: 'Vendeur Premium', reviews: []}} 
+            products={products} onAdvanceStatus={() => {}} onOpenChat={() => {}} 
+            onCreateProduct={() => setShowAddProduct(true)} onPayForVerification={() => {}} 
+            onPayForWorkflow={() => {}} onSaveWorkflow={() => {}} onUpdateInventory={refreshAppData} 
           />
         )}
 
-        {view === AppView.PROFILE && currentUser && (
-          <ProfileView user={inspectedUser || currentUser} isMe={!inspectedUser || inspectedUser.id === currentUser?.id} orders={[]} onViewOrder={() => {}} onEditProfile={() => {}} isAdminView={currentUser.role === 'admin'} />
-        )}
-
-        {view === AppView.CART && (
-          <CartView items={cart} updateQty={(id, d) => setCart(c => c.map(i => i.id === id ? {...i, quantity: Math.max(1, i.quantity + d)} : i))} onCheckout={handleCheckout} onBack={() => setView(AppView.STORE)} userTokenBalance={currentUser?.tokenBalance || 0} />
-        )}
-
-        {view === AppView.PRODUCT_DETAIL && selectedProduct && (
-          <ProductDetailView product={selectedProduct} onAddToCart={p => { setCart(c => [...c, {...p, quantity: 1}]); (window as any).notify?.("Ajouté."); }} onBack={() => setView(AppView.STORE)} onAddReview={() => {}} />
-        )}
-
-        {view === AppView.VIRTUAL_CABIN && (
-          <VirtualCabin initialProduct={selectedProduct} cartItems={cart} onBack={() => setView(AppView.STORE)} onGoToCart={() => setView(AppView.CART)} />
-        )}
+        {view === AppView.CONTACT && <ContactView onBack={() => navigateTo(AppView.STORE)} />}
 
         {view === 'SUCCESS' && (
-          <SuccessView orderId={`LMN-${Math.floor(Math.random()*9000)+1000}`} onContinue={() => setView(AppView.STORE)} />
+          <SuccessView orderId={`LMN-${Math.floor(Math.random()*9000)+1000}`} onContinue={() => navigateTo(AppView.STORE)} />
         )}
       </main>
 
       <AIStylist products={products} history={[]} />
 
-      {showRecharge && currentUser && (
-        <RechargeModal 
-          userEmail={currentUser.email} 
-          onSuccess={(tx) => { 
-            refreshUserData();
-            (window as any).notify?.(`Dépôt ${tx.reference} initié !`, "info"); 
-            setShowRecharge(false); 
-          }} 
-          onCancel={() => setShowRecharge(false)} 
-        />
-      )}
-
       {showAuth && <AuthModal onAuthSuccess={handleAuthSuccess} onClose={() => setShowAuth(false)} />}
       
-      {currentUser && (
-        <div className="fixed bottom-6 left-6 z-[150]">
-           <button onClick={handleLogout} className="bg-red-500 text-white p-4 rounded-2xl shadow-2xl hover:bg-red-600 transition-all font-black text-[10px] uppercase tracking-widest">Déconnexion 🚪</button>
-        </div>
+      {showRules && currentUser && (
+        <RulesModal userName={currentUser.name} onAccept={() => setShowRules(false)} onDecline={handleLogout} />
       )}
-      <Footer setView={(v) => setView(v as any)} />
+
+      {showRecharge && currentUser && (
+        <RechargeModal userEmail={currentUser.email} onSuccess={() => { refreshAppData(); setShowRecharge(false); }} onCancel={() => setShowRecharge(false)} />
+      )}
+
+      {showAddProduct && (
+        <AddProductModal onClose={() => setShowAddProduct(false)} onAdd={(p) => { DatabaseService.addProduct(currentUser!, p); refreshAppData(); }} />
+      )}
+      
+      {currentUser && (
+        <button onClick={handleLogout} className="fixed bottom-6 left-6 z-[150] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase border border-red-500/20">Déconnexion 🚪</button>
+      )}
+
+      <Footer setView={navigateTo} />
     </div>
   );
 };
 
-// Fix: Add missing default export for App component to resolve import error in index.tsx
 export default App;
