@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppView, Product, CartItem, Order, Theme, UserProfile, Chat } from './types';
+import { AppView, Product, CartItem, Order, Theme, UserProfile, Chat, Seller } from './types';
 import { DatabaseService } from './services/database';
 import { Header } from './components/Header';
 import { ProductCard } from './components/ProductCard';
@@ -79,6 +79,19 @@ const App: React.FC = () => {
     return matchesSearch && matchesCat;
   });
 
+  // Construct seller object with correct typing
+  const sellerObject: Seller | null = currentUser ? {
+    id: currentUser.id,
+    name: currentUser.name,
+    logo: currentUser.avatar,
+    rating: currentUser.reputationScore,
+    joinedDate: currentUser.joinedDate,
+    isVerified: true,
+    totalSales: 0,
+    category: 'Vendeur Lumina',
+    reviews: []
+  } : null;
+
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
       <NotificationSystem />
@@ -150,10 +163,10 @@ const App: React.FC = () => {
           <ProductDetailView product={selectedProduct} onAddToCart={p => { setCart(c => [...c, {...p, quantity: 1}]); }} onBack={() => navigateTo(AppView.STORE)} onAddReview={() => {}} />
         )}
 
-        {view === AppView.SELLER_DASHBOARD && currentUser && (
+        {view === AppView.SELLER_DASHBOARD && currentUser && sellerObject && (
           <SellerDashboard 
             orders={DatabaseService.getOrdersBySeller(currentUser.id)} 
-            seller={{...currentUser, logo: currentUser.avatar, isVerified: true, totalSales: 0, category: 'Vendeur Lumina', reviews: []}} 
+            seller={sellerObject} 
             products={products} onCreateProduct={() => setShowAddProduct(true)} 
             onAdvanceStatus={() => {}} onOpenChat={() => setShowChat(true)} onPayForVerification={() => {}} 
             onPayForWorkflow={() => {}} onSaveWorkflow={() => {}} onUpdateInventory={refreshAppData} userEmail={currentUser.email}

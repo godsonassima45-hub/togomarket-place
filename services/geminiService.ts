@@ -8,7 +8,6 @@ export class GeminiService {
   }
 
   // --- Audio Utils ---
-  // Manual base64 encoding as required by guidelines
   static encode(bytes: Uint8Array): string {
     let binary = '';
     const len = bytes.byteLength;
@@ -18,7 +17,6 @@ export class GeminiService {
     return btoa(binary);
   }
 
-  // Manual base64 decoding as required by guidelines
   static decode(base64: string): Uint8Array {
     const binaryString = atob(base64);
     const len = binaryString.length;
@@ -29,7 +27,6 @@ export class GeminiService {
     return bytes;
   }
 
-  // Raw PCM audio decoding for Live API/TTS
   static async decodeAudioData(
     data: Uint8Array,
     ctx: AudioContext,
@@ -49,7 +46,6 @@ export class GeminiService {
     return buffer;
   }
 
-  // Create PCM blob for Live API input
   static createBlob(data: Float32Array): Blob {
     const l = data.length;
     const int16 = new Int16Array(l);
@@ -63,8 +59,6 @@ export class GeminiService {
   }
 
   // --- IA Services ---
-
-  // Analyze profile data using gemini-3-flash-preview
   static async analyzeProfile(userData: any, type: 'seller' | 'buyer'): Promise<string> {
     try {
       const response = await this.ai.models.generateContent({
@@ -77,7 +71,6 @@ export class GeminiService {
     }
   }
 
-  // Mode/Style advice using gemini-3-flash-preview with search grounding
   static async getStylistAdvice(userQuery: string, catalog: string) {
     try {
       const response = await this.ai.models.generateContent({
@@ -99,7 +92,6 @@ export class GeminiService {
     }
   }
 
-  // Virtual try-on using gemini-2.5-flash-image
   static async virtualTryOn(userImgBase64: string, productInfo: string): Promise<string | null> {
     try {
       const data = userImgBase64.includes(',') ? userImgBase64.split(',')[1] : userImgBase64;
@@ -112,24 +104,26 @@ export class GeminiService {
           ]
         }
       });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
+      const candidate = response.candidates?.[0];
+      const parts = candidate?.content?.parts;
+      const part = parts?.find(p => p.inlineData);
+      return part?.inlineData ? `data:image/png;base64,${part.inlineData.data}` : null;
     } catch (e) { return null; }
   }
 
-  // Generate image using gemini-2.5-flash-image
   static async generateImage(prompt: string): Promise<string | null> {
     try {
       const response = await this.ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: { parts: [{ text: prompt }] }
       });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
+      const candidate = response.candidates?.[0];
+      const parts = candidate?.content?.parts;
+      const part = parts?.find(p => p.inlineData);
+      return part?.inlineData ? `data:image/png;base64,${part.inlineData.data}` : null;
     } catch (e) { return null; }
   }
 
-  // Get creative suggestions for an image using gemini-3-flash-preview with JSON schema
   static async getSmartSuggestions(imgBase64: string): Promise<string[]> {
     try {
       const data = imgBase64.includes(',') ? imgBase64.split(',')[1] : imgBase64;
@@ -156,7 +150,6 @@ export class GeminiService {
     }
   }
 
-  // Replace background using gemini-2.5-flash-image with two image parts
   static async replaceBackground(userImgBase64: string, bgImgBase64: string): Promise<string | null> {
     try {
       const userData = userImgBase64.includes(',') ? userImgBase64.split(',')[1] : userImgBase64;
@@ -171,12 +164,13 @@ export class GeminiService {
           ]
         }
       });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
+      const candidate = response.candidates?.[0];
+      const parts = candidate?.content?.parts;
+      const part = parts?.find(p => p.inlineData);
+      return part?.inlineData ? `data:image/png;base64,${part.inlineData.data}` : null;
     } catch (e) { return null; }
   }
 
-  // Edit image with text prompt using gemini-2.5-flash-image
   static async editImage(imgBase64: string, prompt: string): Promise<string | null> {
     try {
       const data = imgBase64.includes(',') ? imgBase64.split(',')[1] : imgBase64;
@@ -189,12 +183,13 @@ export class GeminiService {
           ]
         }
       });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:image/png;base64,${part.inlineData.data}` : null;
+      const candidate = response.candidates?.[0];
+      const parts = candidate?.content?.parts;
+      const part = parts?.find(p => p.inlineData);
+      return part?.inlineData ? `data:image/png;base64,${part.inlineData.data}` : null;
     } catch (e) { return null; }
   }
 
-  // Live Stylist voice connection using gemini-2.5-flash-native-audio-preview-12-2025
   static connectLiveStylist(callbacks: {
     onopen: () => void;
     onmessage: (message: LiveServerMessage) => void;

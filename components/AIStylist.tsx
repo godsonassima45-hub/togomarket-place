@@ -60,7 +60,9 @@ export const AIStylist: React.FC<AIStylistProps> = ({ products, history }) => {
           scriptProcessor.connect(inputAudioCtxRef.current!.destination);
         },
         onmessage: async (message) => {
-          const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+          const modelTurn = message.serverContent?.modelTurn;
+          const base64Audio = modelTurn?.parts?.[0]?.inlineData?.data;
+          
           if (base64Audio && outputAudioCtxRef.current) {
             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioCtxRef.current.currentTime);
             const audioBuffer = await GeminiService.decodeAudioData(
